@@ -1,0 +1,10 @@
+{
+  "description": "Explore fisheries employment by education level with year-by-year trends, regional rankings, and region search, including normalized comparisons across local areas.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
