@@ -1,129 +1,274 @@
 import { useMemo, useState } from 'react'
 
-type Row = { group: string; name: string; values: number[] }
+type SensorPoint = {
+  time: string
+  value: number
+}
 
-const metrics = ['계', '고등학교 졸업 이하', '초전문 대학교', '대학교', '대학원 석·박사']
-const rows: Row[] = [
-  { group: '전체', name: '전체', values: [890861, 695561, 78422, 113443, 3436] },
-  { group: '업종 대분류', name: '수산업', values: [698059, 560651, 53868, 81167, 2372] },
-  { group: '업종 대분류', name: '수산관련산업', values: [192802, 134910, 24554, 32275, 1063] },
-  { group: '업종 중분류', name: '수산물 생산업', values: [509534, 425554, 34323, 48249, 1407] },
-  { group: '업종 중분류', name: '수산물 가공업', values: [58170, 43496, 4626, 9316, 731] },
-  { group: '업종 중분류', name: '수산물 유통업', values: [126863, 89181, 14492, 22964, 226] },
-  { group: '업종 중분류', name: '수산여가관련 서비스업', values: [3491, 2419, 427, 638, 8] },
-  { group: '업종 중분류', name: '어선 및 낚시 선박 건조업', values: [61570, 40315, 8235, 12310, 710] },
-  { group: '업종 중분류', name: '수산 기자재 생산 및 설치업', values: [7881, 4622, 1192, 1937, 130] },
-  { group: '업종 중분류', name: '어선·낚시선박 및 수산기자재 유통업', values: [6537, 3393, 978, 1998, 168] },
-  { group: '업종 중분류', name: '수산관련 서비스업', values: [116814, 86580, 14149, 16030, 55] },
-  { group: '종사자 규모', name: '1~4인', values: [185176, 153440, 15310, 16143, 284] },
-  { group: '종사자 규모', name: '5~9인', values: [96014, 74184, 8944, 12724, 163] },
-  { group: '종사자 규모', name: '10~19인', values: [125067, 96141, 11169, 16371, 1387] },
-  { group: '종사자 규모', name: '20~99인', values: [265745, 197368, 30093, 37635, 648] },
-  { group: '종사자 규모', name: '100인 이상', values: [218859, 174427, 12907, 30570, 955] },
-  { group: '매출액 규모', name: '1억 미만', values: [172596, 153282, 6685, 12455, 174] },
-  { group: '매출액 규모', name: '1억 이상~5억 미만', values: [347262, 281411, 32391, 32775, 684] },
-  { group: '매출액 규모', name: '5억 이상~10억 미만', values: [90096, 73749, 7782, 7815, 750] },
-  { group: '매출액 규모', name: '10억 이상', values: [280906, 187118, 31563, 60397, 1828] },
-]
+const sensorData: Record<string, SensorPoint[]> = {
+  '1시간': [
+    { time: '14:00', value: 38 },
+    { time: '14:10', value: 43 },
+    { time: '14:20', value: 41 },
+    { time: '14:30', value: 58 },
+    { time: '14:40', value: 54 },
+    { time: '14:50', value: 66 },
+    { time: '15:00', value: 72 },
+  ],
+  '6시간': [
+    { time: '09:00', value: 31 },
+    { time: '10:00', value: 46 },
+    { time: '11:00', value: 40 },
+    { time: '12:00', value: 63 },
+    { time: '13:00', value: 51 },
+    { time: '14:00', value: 69 },
+    { time: '15:00', value: 72 },
+  ],
+  '24시간': [
+    { time: '00:00', value: 22 },
+    { time: '04:00', value: 35 },
+    { time: '08:00', value: 29 },
+    { time: '12:00', value: 61 },
+    { time: '16:00', value: 72 },
+    { time: '20:00', value: 48 },
+    { time: '현재', value: 72 },
+  ],
+}
 
-const fmt = new Intl.NumberFormat('ko-KR')
+function LogoMark() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+      <path d="M10.5 23.5V15a5.5 5.5 0 0 1 11 0v8.5" strokeWidth="2.4" />
+      <path d="M6.5 21.5V15a9.5 9.5 0 0 1 19 0v6.5M14 23.5v-9a2 2 0 0 1 4 0v9" strokeWidth="2.4" />
+    </svg>
+  )
+}
 
-function SearchIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
+function SensorIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+      <path d="M8.5 18v-7.5a3.5 3.5 0 0 1 7 0V18M5 16v-5.5a7 7 0 0 1 14 0V16M12 14.5V20" />
+    </svg>
+  )
+}
+
+function TrendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path d="m4 16 5-5 4 4 7-8M15 7h5v5" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  )
 }
 
 export default function App() {
-  const [metric, setMetric] = useState(0)
-  const [query, setQuery] = useState('')
-  const [group, setGroup] = useState('업종 중분류')
+  const [range, setRange] = useState('1시간')
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const data = sensorData[range]
+  const currentValue = data.at(-1)?.value ?? 0
+  const summary = useMemo(() => {
+    const values = data.map((item) => item.value)
+    return {
+      average: (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1),
+      highest: Math.max(...values),
+      lowest: Math.min(...values),
+    }
+  }, [data])
 
-  const filtered = useMemo(() => rows.filter(r => r.group === group && r.name.includes(query)), [group, query])
-  const ranked = useMemo(() => [...filtered].sort((a, b) => b.values[metric] - a.values[metric]), [filtered, metric])
-  const max = Math.max(...ranked.map(r => r.values[metric]), 1)
-  const min = Math.min(...ranked.map(r => r.values[metric]), 0)
-  const total = rows[0].values[metric]
-  const top = ranked[0]
-  const normalized = ranked.map(r => ({ ...r, norm: max === min ? 0 : (r.values[metric] - min) / (max - min) }))
-  const points = normalized.map((r, i) => `${normalized.length === 1 ? 50 : 5 + i * (90 / (normalized.length - 1))},${86 - r.norm * 70}`).join(' ')
+  const chart = useMemo(() => {
+    const width = 760
+    const height = 260
+    const left = 48
+    const right = 20
+    const top = 20
+    const bottom = 34
+    const innerWidth = width - left - right
+    const innerHeight = height - top - bottom
+    const maxValue = 100
+    const points = data.map((item, index) => ({
+      ...item,
+      x: left + (index * innerWidth) / (data.length - 1),
+      y: top + innerHeight - (item.value / maxValue) * innerHeight,
+    }))
+    const line = points.map((point) => `${point.x},${point.y}`).join(' ')
+    const area = `${left},${top + innerHeight} ${line} ${width - right},${top + innerHeight}`
+    return { width, height, left, right, top, bottom, innerHeight, points, line, area }
+  }, [data])
 
   return (
-    <main className="min-h-screen bg-[#f4f6f3] text-[#17221c]">
-      <header className="border-b border-[#dfe5df] bg-[#f9faf8]">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4 lg:px-10">
+    <main className="min-h-screen bg-[#f6f8fb] text-[#172033]">
+      <header className="border-b border-[#e7ebf1] bg-white">
+        <div className="mx-auto flex h-[72px] max-w-[1380px] items-center justify-between px-5 sm:px-8 lg:px-10">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#134e3a] text-sm font-bold text-white">K</div>
-            <div><p className="text-sm font-bold tracking-tight">KOSIS DATA LAB</p><p className="text-[11px] text-[#718078]">국가통계 시각화</p></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#315efb] text-white shadow-[0_6px_16px_rgba(49,94,251,.22)]">
+              <LogoMark />
+            </div>
+            <div>
+              <p className="text-[15px] font-bold tracking-[-.02em]">TOUCH SENSE</p>
+              <p className="text-[11px] font-medium text-[#8b95a7]">센서 모니터링 시스템</p>
+            </div>
           </div>
-          <div className="rounded-full border border-[#d8e0da] bg-white px-3 py-1.5 text-xs font-medium text-[#526159]">데이터 기준 · 2016</div>
+          <div className="flex items-center gap-2 rounded-full border border-[#e6eaf0] bg-[#fafbfc] px-3 py-2 text-xs font-semibold text-[#596579]">
+            <span className="h-2 w-2 rounded-full bg-[#24b47e] shadow-[0_0_0_4px_rgba(36,180,126,.1)]" />
+            시스템 정상
+          </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1440px] px-6 py-8 lg:px-10">
-        <section className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-[1380px] px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <section className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <p className="mb-2 text-xs font-bold tracking-[.18em] text-[#167352]">FISHERIES WORKFORCE</p>
-            <h1 className="text-3xl font-semibold tracking-[-.04em] lg:text-4xl">수산업 종사자 학력 현황</h1>
-            <p className="mt-3 text-sm text-[#65736b]">통계청 원자료를 기반으로 업종과 사업체 규모별 종사자 분포를 살펴봅니다.</p>
+            <p className="mb-2 text-xs font-bold tracking-[.16em] text-[#315efb]">LIVE MONITORING</p>
+            <h1 className="text-3xl font-bold tracking-[-.045em] sm:text-[36px]">터치센서 대시보드</h1>
+            <p className="mt-2 text-sm text-[#7b8698]">센서의 실시간 측정값과 시간에 따른 변화를 확인하세요.</p>
           </div>
-          <label className="relative block w-full lg:w-80">
-            <span className="sr-only">항목 검색</span>
-            <span className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#718078]"><SearchIcon /></span>
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="업종 또는 규모 검색" className="w-full rounded-xl border border-[#d9e1db] bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-[#167352] focus:ring-2 focus:ring-[#167352]/10" />
-          </label>
+          <div className="flex items-center gap-2 text-xs font-medium text-[#8a94a6]">
+            <ClockIcon />
+            마지막 업데이트&nbsp; 2025. 05. 21. 15:00:12
+          </div>
         </section>
 
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          {['업종 중분류', '업종 대분류', '종사자 규모', '매출액 규모'].map(item => (
-            <button key={item} onClick={() => setGroup(item)} className={`rounded-full px-4 py-2 text-xs font-semibold transition ${group === item ? 'bg-[#172e25] text-white' : 'border border-[#d8e0da] bg-white text-[#5d6c64] hover:border-[#9eaaa3]'}`}>{item}</button>
-          ))}
-          <select value={metric} onChange={e => setMetric(Number(e.target.value))} className="ml-auto rounded-xl border border-[#d8e0da] bg-white px-4 py-2.5 text-xs font-semibold outline-none">
-            {metrics.map((m, i) => <option value={i} key={m}>{m}</option>)}
-          </select>
-        </div>
+        <section className="grid gap-5 lg:grid-cols-[minmax(300px,.72fr)_minmax(0,1.55fr)]">
+          <article className="relative min-h-[440px] overflow-hidden rounded-[24px] bg-[#315efb] p-7 text-white shadow-[0_18px_50px_rgba(49,94,251,.2)] sm:p-8">
+            <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border-[50px] border-white/[.055]" />
+            <div className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-white/[.04]" />
+            <div className="relative flex h-full flex-col">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                  <SensorIcon />
+                  현재 센서값
+                </div>
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-semibold">SENSOR 01</span>
+              </div>
 
-        <section className="mb-6 grid gap-4 sm:grid-cols-3">
-          <article className="rounded-2xl border border-[#e0e6e1] bg-white p-5 shadow-[0_8px_30px_rgba(30,55,43,.04)]">
-            <p className="text-xs font-semibold text-[#76837c]">전체 종사자</p><p className="mt-2 text-3xl font-semibold tracking-tight">{fmt.format(total)}<span className="ml-1 text-sm font-medium text-[#76837c]">명</span></p>
-          </article>
-          <article className="rounded-2xl border border-[#e0e6e1] bg-white p-5 shadow-[0_8px_30px_rgba(30,55,43,.04)]">
-            <p className="text-xs font-semibold text-[#76837c]">{group} 최다</p><p className="mt-2 truncate text-xl font-semibold">{top?.name ?? '검색 결과 없음'}</p><p className="mt-1 text-xs text-[#167352]">{top ? `${fmt.format(top.values[metric])}명` : '검색어를 변경해 주세요'}</p>
-          </article>
-          <article className="rounded-2xl border border-[#e0e6e1] bg-[#173f30] p-5 text-white shadow-[0_8px_30px_rgba(30,55,43,.08)]">
-            <p className="text-xs font-semibold text-white/60">데이터 범위</p><p className="mt-2 text-xl font-semibold">2016 단일 연도</p><p className="mt-1 text-xs text-white/65">지역 열 미포함 · 업종 기준 제공</p>
-          </article>
-        </section>
+              <div className="flex flex-1 flex-col justify-center py-10">
+                <div className="flex items-end">
+                  <strong className="text-[88px] font-bold leading-none tracking-[-.07em] sm:text-[104px]">{currentValue}</strong>
+                  <span className="mb-3 ml-3 text-xl font-semibold text-white/65">%</span>
+                </div>
+                <div className="mt-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-xs font-semibold">
+                  <TrendIcon />
+                  이전 측정 대비 +6%
+                </div>
+              </div>
 
-        <section className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
-          <article className="rounded-2xl border border-[#e0e6e1] bg-white p-6 shadow-[0_8px_30px_rgba(30,55,43,.04)]">
-            <div className="mb-6 flex items-start justify-between"><div><h2 className="font-semibold">2016 항목별 순위</h2><p className="mt-1 text-xs text-[#79867f]">{metrics[metric]} 기준 · 단위: 명</p></div><span className="rounded-md bg-[#e9f4ee] px-2 py-1 text-[10px] font-bold text-[#167352]">{ranked.length}개 항목</span></div>
-            <div className="space-y-4">
-              {ranked.map((r, i) => <div key={r.name} className="grid grid-cols-[24px_minmax(100px,170px)_1fr_70px] items-center gap-3 text-xs">
-                <span className="font-semibold text-[#9aa59f]">{String(i + 1).padStart(2, '0')}</span><span className="truncate font-medium">{r.name}</span>
-                <div className="h-2 overflow-hidden rounded-full bg-[#edf1ee]"><div className="h-full rounded-full bg-[#24a06b]" style={{ width: `${(r.values[metric] / max) * 100}%` }} /></div>
-                <span className="text-right font-semibold tabular-nums">{fmt.format(r.values[metric])}</span>
-              </div>)}
-              {!ranked.length && <p className="py-16 text-center text-sm text-[#79867f]">일치하는 항목이 없습니다.</p>}
+              <div className="border-t border-white/15 pt-5">
+                <div className="mb-2.5 flex justify-between text-[11px] font-medium text-white/60">
+                  <span>감도 수준</span>
+                  <span>높음</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/15">
+                  <div className="h-full w-[72%] rounded-full bg-white" />
+                </div>
+                <div className="mt-5 flex items-center gap-2 text-xs text-white/65">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#68f5c0]" />
+                  정상 범위 내에서 감지되고 있습니다.
+                </div>
+              </div>
             </div>
           </article>
 
-          <div className="grid gap-6">
-            <article className="rounded-2xl border border-[#e0e6e1] bg-white p-6 shadow-[0_8px_30px_rgba(30,55,43,.04)]">
-              <h2 className="font-semibold">정규화 비교</h2><p className="mt-1 text-xs text-[#79867f]">선택 항목의 최솟값 0 · 최댓값 1</p>
-              <div className="mt-5 h-48 rounded-xl bg-[#f7f9f7] p-3">
-                {normalized.length > 1 ? <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
-                  {[16, 51, 86].map(y => <line key={y} x1="5" y1={y} x2="95" y2={y} stroke="#dfe6e1" strokeWidth=".6" />)}
-                  <polyline points={points} fill="none" stroke="#167352" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                  {normalized.map((r, i) => <circle key={r.name} cx={5 + i * (90 / (normalized.length - 1))} cy={86 - r.norm * 70} r="2" fill="#fff" stroke="#167352" strokeWidth="1.5"><title>{r.name}: {r.norm.toFixed(2)}</title></circle>)}
-                </svg> : <div className="flex h-full items-center justify-center text-xs text-[#79867f]">두 개 이상의 항목이 필요합니다.</div>}
+          <article className="rounded-[24px] border border-[#e7ebf1] bg-white p-5 shadow-[0_12px_40px_rgba(26,39,68,.055)] sm:p-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <h2 className="text-lg font-bold tracking-[-.025em]">시간에 따른 센서 변화</h2>
+                <p className="mt-1.5 text-xs text-[#8a94a6]">선택한 기간의 터치 감도 변화 추이입니다.</p>
               </div>
-              <div className="mt-3 flex justify-between text-[10px] text-[#87938d]"><span>{normalized[0]?.name}</span><span>{normalized.at(-1)?.name}</span></div>
-            </article>
-            <article className="rounded-2xl border border-[#e7dfca] bg-[#fffaf0] p-5">
-              <p className="text-xs font-bold text-[#866b2f]">데이터 안내</p>
-              <p className="mt-2 text-xs leading-5 text-[#756b55]">첨부 CSV에는 시·군·구와 추가 연도가 없어 지역 순위 및 연도 추이는 계산할 수 없습니다. 해당 열이 포함된 CSV를 추가하면 동일한 화면 구조로 확장할 수 있습니다.</p>
-            </article>
-          </div>
+              <div className="flex w-fit rounded-xl bg-[#f3f5f8] p-1">
+                {Object.keys(sensorData).map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => {
+                      setRange(item)
+                      setSelectedIndex(null)
+                    }}
+                    className={`rounded-lg px-3.5 py-2 text-[11px] font-bold transition ${
+                      range === item ? 'bg-white text-[#315efb] shadow-sm' : 'text-[#8a94a6] hover:text-[#596579]'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="relative mt-8">
+              {selectedIndex !== null && (
+                <div
+                  className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg bg-[#172033] px-3 py-2 text-center text-[10px] text-white shadow-lg"
+                  style={{
+                    left: `${(chart.points[selectedIndex].x / chart.width) * 100}%`,
+                    top: `${Math.max(0, (chart.points[selectedIndex].y / chart.height) * 100 - 13)}%`,
+                  }}
+                >
+                  <strong className="block text-xs">{chart.points[selectedIndex].value}%</strong>
+                  <span className="text-white/60">{chart.points[selectedIndex].time}</span>
+                </div>
+              )}
+              <svg viewBox={`0 0 ${chart.width} ${chart.height}`} className="h-[280px] w-full overflow-visible" role="img" aria-label="시간대별 터치 센서값 선 그래프">
+                <defs>
+                  <linearGradient id="sensorArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#315efb" stopOpacity=".2" />
+                    <stop offset="100%" stopColor="#315efb" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {[0, 25, 50, 75, 100].map((value) => {
+                  const y = chart.top + chart.innerHeight - (value / 100) * chart.innerHeight
+                  return (
+                    <g key={value}>
+                      <line x1={chart.left} y1={y} x2={chart.width - chart.right} y2={y} stroke="#edf0f4" strokeWidth="1" />
+                      <text x="34" y={y + 4} textAnchor="end" fill="#a1a9b6" stroke="none" fontSize="10">{value}</text>
+                    </g>
+                  )
+                })}
+                <polygon points={chart.area} fill="url(#sensorArea)" stroke="none" />
+                <polyline points={chart.line} fill="none" stroke="#315efb" strokeWidth="3.5" />
+                {chart.points.map((point, index) => (
+                  <g key={`${range}-${point.time}`}>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r="12"
+                      fill="transparent"
+                      stroke="none"
+                      className="cursor-pointer"
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      onMouseLeave={() => setSelectedIndex(null)}
+                      onClick={() => setSelectedIndex(selectedIndex === index ? null : index)}
+                    />
+                    <circle cx={point.x} cy={point.y} r={index === data.length - 1 ? 5 : 3.5} fill="#fff" stroke="#315efb" strokeWidth="2.5" className="pointer-events-none" />
+                    <text x={point.x} y={chart.height - 8} textAnchor="middle" fill="#9099a8" stroke="none" fontSize="10">{point.time}</text>
+                  </g>
+                ))}
+              </svg>
+            </div>
+
+            <div className="mt-2 grid grid-cols-3 divide-x divide-[#e9edf2] rounded-2xl bg-[#f8f9fb] px-2 py-4">
+              <div className="px-3 sm:px-5">
+                <p className="text-[10px] font-semibold text-[#969fad]">평균값</p>
+                <p className="mt-1 text-base font-bold">{summary.average}<span className="ml-0.5 text-xs text-[#969fad]">%</span></p>
+              </div>
+              <div className="px-3 sm:px-5">
+                <p className="text-[10px] font-semibold text-[#969fad]">최고값</p>
+                <p className="mt-1 text-base font-bold">{summary.highest}<span className="ml-0.5 text-xs text-[#969fad]">%</span></p>
+              </div>
+              <div className="px-3 sm:px-5">
+                <p className="text-[10px] font-semibold text-[#969fad]">최저값</p>
+                <p className="mt-1 text-base font-bold">{summary.lowest}<span className="ml-0.5 text-xs text-[#969fad]">%</span></p>
+              </div>
+            </div>
+          </article>
         </section>
+
+        <p className="mt-5 text-right text-[11px] text-[#a0a8b5]">현재 화면은 예시 데이터를 사용하고 있습니다.</p>
       </div>
     </main>
   )
