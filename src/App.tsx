@@ -1,48 +1,61 @@
-import { useMemo, useRef, useState } from "react"
+import { createClient } from "@supabase/supabase-js"
+import { useEffect, useMemo, useState } from "react"
 
 type SensorPoint = {
+  id: string
+  createdAt: string
   time: string
   value: number
 }
 
-type SerialPort = {
-  readable: ReadableStream<Uint8Array> | null
-  open(options: { baudRate: number }): Promise<void>
-  close(): Promise<void>
+type ReadingRow = {
+  id: string | number
+  value: number | string
+  created_at: string
 }
 
-type SerialApi = {
-  requestPort(): Promise<SerialPort>
+type ConnectionStatus = "connecting" | "connected" | "error"
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null
+
+function toSensorPoint(row: Record<string, unknown>): SensorPoint | null {
+  const value = Number(row.value)
+  const createdAt = row.created_at
+  if (
+    !Number.isFinite(value) ||
+    typeof createdAt !== "string" ||
+    Number.isNaN(Date.parse(createdAt))
+  ) {
+    return null
+  }
+
+  const id =
+    typeof row.id === "string" || typeof row.id === "number"
+      ? String(row.id)
+      : `${createdAt}:${value}`
+  return {
+    id,
+    createdAt,
+    time: new Date(createdAt).toLocaleTimeString("ko-KR"),
+    value,
+  }
 }
 
-const sensorData: Record<string, SensorPoint[]> = {
-  "1시간": [
-    { time: "14:00", value: 38 },
-    { time: "14:10", value: 43 },
-    { time: "14:20", value: 41 },
-    { time: "14:30", value: 58 },
-    { time: "14:40", value: 54 },
-    { time: "14:50", value: 66 },
-    { time: "15:00", value: 72 },
-  ],
-  "6시간": [
-    { time: "09:00", value: 31 },
-    { time: "10:00", value: 46 },
-    { time: "11:00", value: 40 },
-    { time: "12:00", value: 63 },
-    { time: "13:00", value: 51 },
-    { time: "14:00", value: 69 },
-    { time: "15:00", value: 72 },
-  ],
-  "24시간": [
-    { time: "00:00", value: 22 },
-    { time: "04:00", value: 35 },
-    { time: "08:00", value: 29 },
-    { time: "12:00", value: 61 },
-    { time: "16:00", value: 72 },
-    { time: "20:00", value: 48 },
-    { time: "현재", value: 72 },
-  ],
+function mergeReadings(...groups: SensorPoint[][]): SensorPoint[] {
+  const readings = new Map<string, SensorPoint>()
+  for (const group of groups) {
+    for (const point of group) readings.set(point.id, point)
+  }
+  return [...readings.values()]
+    .sort(
+      (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt),
+    )
+    .slice(-100)
 }
 
 function LogoMark() {
@@ -83,26 +96,108 @@ function ClockIcon() {
 }
 
 export default function App() {
-  const [range, setRange] = useState("1시간")
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
-  const [livePoints, setLivePoints] = useState<SensorPoint[]>([])
-  const [serialStatus, setSerialStatus] =
-    useState<"disconnected" | "connecting" | "connected">("disconnected")
-  const [serialError, setSerialError] = useState("")
+  const [readings, setReadings] = useState<SensorPoint[]>([])
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("connecting")
+  const [connectionError, setConnectionError] = useState("")
   const [lastUpdated, setLastUpdated] = useState("")
-  const portRef = useRef<SerialPort | null>(null)
-  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
-  const disconnectRequested = useRef(false)
-  const data = livePoints.length > 0 ? livePoints : sensorData[range]
-  const currentValue = data.at(-1)?.value ?? 0
+  const data = readings
+  const currentValue = data.at(-1)?.value ?? null
+
+  useEffect(() => {
+    let active = true
+    const client = supabase
+    if (!client) {
+      setConnectionStatus("error")
+      setConnectionError(
+        "VITE_SUPABASE_URL 또는 VITE_SUPABASE_ANON_KEY 환경 변수를 찾을 수 없습니다.",
+      )
+      return
+    }
+
+    const channel = client
+      .channel("readings-dashboard")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "readings" },
+        (payload) => {
+          const point = toSensorPoint(payload.new as Record<string, unknown>)
+          if (!point) {
+            setConnectionError(
+              "새 readings 행에 유효한 value 또는 created_at 값이 없습니다.",
+            )
+            return
+          }
+          setReadings((previous) => mergeReadings(previous, [point]))
+          setLastUpdated(point.time)
+          setSelectedIndex(null)
+        },
+      )
+      .subscribe((status, error) => {
+        if (!active) return
+        if (status === "SUBSCRIBED") {
+          setConnectionStatus("connected")
+          setConnectionError("")
+          void loadLatestReadings()
+        } else if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          setConnectionStatus("error")
+          setConnectionError(
+            error?.message ??
+              `Supabase Realtime 연결 상태: ${status}. 테이블 Realtime 설정과 네트워크를 확인하세요.`,
+          )
+        }
+      })
+
+    async function loadLatestReadings() {
+      if (!client) return
+      const { data: rows, error } = await client
+        .from("readings")
+        .select("id, value, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      if (!active) return
+      if (error) {
+        setConnectionStatus("error")
+        setConnectionError(`readings 조회 실패: ${error.message}`)
+        return
+      }
+
+      const points = (rows as ReadingRow[])
+        .map((row) =>
+          toSensorPoint({
+            id: row.id,
+            value: row.value,
+            created_at: row.created_at,
+          }),
+        )
+        .filter((point): point is SensorPoint => point !== null)
+      setReadings((previous) => mergeReadings(points, previous))
+      setLastUpdated(points.at(-1)?.time ?? "")
+      setSelectedIndex(null)
+    }
+
+    return () => {
+      active = false
+      void client.removeChannel(channel)
+    }
+  }, [])
+
   const summary = useMemo(() => {
     const values = data.map((item) => item.value)
     return {
-      average: (
-        values.reduce((sum, value) => sum + value, 0) / values.length
-      ).toFixed(1),
-      highest: Math.max(...values),
-      lowest: Math.min(...values),
+      average: values.length
+        ? (
+            values.reduce((sum, value) => sum + value, 0) / values.length
+          ).toFixed(1)
+        : "—",
+      highest: values.length ? Math.max(...values) : "—",
+      lowest: values.length ? Math.min(...values) : "—",
     }
   }, [data])
 
@@ -149,95 +244,6 @@ export default function App() {
     }
   }, [data])
 
-  const connectSerial = async () => {
-    const serial = (navigator as Navigator & { serial?: SerialApi }).serial
-    if (!serial) {
-      setSerialError(
-        "Web Serial API를 지원하는 Chrome 또는 Edge 브라우저에서 열어 주세요.",
-      )
-      return
-    }
-
-    disconnectRequested.current = false
-    setSerialStatus("connecting")
-    setSerialError("")
-    let port: SerialPort | null = null
-    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
-
-    try {
-      port = await serial.requestPort()
-      await port.open({ baudRate: 9600 })
-      if (!port.readable) {
-        throw new Error("시리얼 포트에서 데이터를 읽을 수 없습니다.")
-      }
-
-      portRef.current = port
-      reader = port.readable.getReader()
-      readerRef.current = reader
-      setSerialStatus("connected")
-
-      const decoder = new TextDecoder()
-      let buffer = ""
-      while (!disconnectRequested.current) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split(/\r?\n/)
-        buffer = lines.pop() ?? ""
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          const value = Number(trimmed)
-          if (!Number.isFinite(value)) {
-            setSerialError(
-              `숫자가 아닌 수신값을 무시했습니다: ${trimmed.slice(0, 40)}`,
-            )
-            continue
-          }
-          const point = { time: new Date().toLocaleTimeString("ko-KR"), value }
-          setLivePoints((previous) => [...previous, point].slice(-100))
-          setLastUpdated(point.time)
-          setSelectedIndex(null)
-          setSerialError("")
-        }
-      }
-      if (!disconnectRequested.current) {
-        setSerialError("시리얼 포트 연결이 종료되었습니다.")
-      }
-    } catch (error) {
-      if (!disconnectRequested.current) {
-        const message = error instanceof Error ? error.message : String(error)
-        setSerialError(message)
-      }
-    } finally {
-      if (reader) {
-        if (readerRef.current === reader) readerRef.current = null
-        reader.releaseLock()
-      }
-      if (port) {
-        if (portRef.current === port) portRef.current = null
-        try {
-          await port.close()
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          setSerialError(`시리얼 포트를 닫지 못했습니다: ${message}`)
-        }
-      }
-      setSerialStatus("disconnected")
-    }
-  }
-
-  const disconnectSerial = async () => {
-    disconnectRequested.current = true
-    try {
-      await readerRef.current?.cancel()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setSerialError(`시리얼 연결을 종료하지 못했습니다: ${message}`)
-    }
-  }
-
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-[#172033]">
       <header className="border-b border-[#e7ebf1] bg-white">
@@ -256,8 +262,20 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-full border border-[#e6eaf0] bg-[#fafbfc] px-3 py-2 text-xs font-semibold text-[#596579]">
-            <span className="h-2 w-2 rounded-full bg-[#24b47e] shadow-[0_0_0_4px_rgba(36,180,126,.1)]" />
-            시스템 정상
+            <span
+              className={`h-2 w-2 rounded-full ${
+                connectionStatus === "connected"
+                  ? "bg-[#24b47e] shadow-[0_0_0_4px_rgba(36,180,126,.1)]"
+                  : connectionStatus === "error"
+                    ? "bg-[#e25555]"
+                    : "bg-[#e4a834]"
+              }`}
+            />
+            {connectionStatus === "connected"
+              ? "Realtime 연결됨"
+              : connectionStatus === "error"
+                ? "연결 오류"
+                : "Supabase 연결 중"}
           </div>
         </div>
       </header>
@@ -280,43 +298,18 @@ export default function App() {
               <ClockIcon />
               {lastUpdated
                 ? `마지막 업데이트 · ${lastUpdated}`
-                : "샘플 데이터 표시 중"}
+                : "데이터 불러오는 중"}
             </div>
-            <button
-              onClick={
-                serialStatus === "connected" ? disconnectSerial : connectSerial
-              }
-              disabled={serialStatus === "connecting"}
-              className="rounded-xl bg-[#315efb] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#244de0] disabled:cursor-wait disabled:opacity-60"
-            >
-              {serialStatus === "connecting"
-                ? "연결 중…"
-                : serialStatus === "connected"
-                  ? "연결 종료"
-                  : "시리얼 연결"}
-            </button>
           </div>
         </section>
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
-          <span
-            className={`rounded-full px-3 py-1.5 font-semibold ${
-              serialStatus === "connected"
-                ? "bg-[#e9f8f1] text-[#16835a]"
-                : "bg-[#f0f2f6] text-[#7b8698]"
-            }`}
+        {connectionError && (
+          <p
+            role="alert"
+            className="mb-5 rounded-xl border border-[#f1d4d4] bg-[#fff7f7] px-4 py-3 text-xs text-[#b63d3d]"
           >
-            {serialStatus === "connected"
-              ? "9600 baud · 연결됨"
-              : serialStatus === "connecting"
-                ? "포트 선택 대기 중"
-                : "시리얼 미연결"}
-          </span>
-          {serialError && (
-            <p role="status" className="text-[#c2413b]">
-              {serialError}
-            </p>
-          )}
-        </div>
+            {connectionError}
+          </p>
+        )}
 
         <section className="grid gap-5 lg:grid-cols-[minmax(300px,.72fr)_minmax(0,1.55fr)]">
           <article className="relative min-h-[440px] overflow-hidden rounded-[24px] bg-[#315efb] p-7 text-white shadow-[0_18px_50px_rgba(49,94,251,.2)] sm:p-8">
@@ -336,48 +329,52 @@ export default function App() {
               <div className="flex flex-1 flex-col justify-center py-10">
                 <div className="flex items-end">
                   <strong className="text-[88px] font-bold leading-none tracking-[-.07em] sm:text-[104px]">
-                    {currentValue}
+                    {currentValue ?? "—"}
                   </strong>
-                  {!livePoints.length && (
-                    <span className="mb-3 ml-3 text-xl font-semibold text-white/65">
-                      %
-                    </span>
-                  )}
                 </div>
                 <div className="mt-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-xs font-semibold">
                   <TrendIcon />
-                  {livePoints.length > 1
-                    ? `이전 측정 대비 ${
-                        currentValue -
-                          livePoints[livePoints.length - 2].value >=
+                  {readings.length > 1
+                    ? `이전 값 대비 ${
+                        readings[readings.length - 1].value -
+                          readings[readings.length - 2].value >=
                         0
                           ? "+"
                           : ""
-                      }${currentValue - livePoints[livePoints.length - 2].value}`
-                    : livePoints.length === 1
-                      ? "첫 번째 측정값"
-                      : "이전 측정 대비 +6%"}
+                      }${
+                        readings[readings.length - 1].value -
+                        readings[readings.length - 2].value
+                      }`
+                    : readings.length === 1
+                      ? "최신 측정값"
+                      : "데이터 대기 중"}
                 </div>
               </div>
 
               <div className="border-t border-white/15 pt-5">
                 <div className="mb-2.5 flex justify-between text-[11px] font-medium text-white/60">
-                  <span>감도 수준</span>
-                  <span>{livePoints.length ? "실시간" : "높음"}</span>
+                  <span>저장된 readings</span>
+                  <span>{readings.length} / 100</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/15">
                   <div
                     className="h-full rounded-full bg-white transition-all"
                     style={{
-                      width: `${Math.min(100, Math.max(0, currentValue))}%`,
+                      width: `${readings.length}%`,
                     }}
                   />
                 </div>
                 <div className="mt-5 flex items-center gap-2 text-xs text-white/65">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#68f5c0]" />
-                  {serialStatus === "connected"
-                    ? "센서 데이터를 실시간으로 수신하고 있습니다."
-                    : "시리얼 연결 후 센서 데이터를 표시합니다."}
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      connectionStatus === "connected"
+                        ? "bg-[#68f5c0]"
+                        : "bg-white/50"
+                    }`}
+                  />
+                  {connectionStatus === "connected"
+                    ? "새 데이터가 Realtime으로 반영됩니다."
+                    : "Supabase readings 데이터를 기다리는 중입니다."}
                 </div>
               </div>
             </div>
@@ -390,35 +387,12 @@ export default function App() {
                   시간에 따른 센서 변화
                 </h2>
                 <p className="mt-1.5 text-xs text-[#8a94a6]">
-                  {livePoints.length
-                    ? "수신된 최근 100개 측정값입니다."
-                    : "선택한 기간의 터치 감도 변화 추이입니다."}
+                  Supabase readings의 최근 측정값 · 단위는 value 기준
                 </p>
               </div>
-              {livePoints.length ? (
-                <span className="w-fit rounded-xl bg-[#eaf0ff] px-3.5 py-2 text-[11px] font-bold text-[#315efb]">
-                  최근 {livePoints.length}/100개
-                </span>
-              ) : (
-                <div className="flex w-fit rounded-xl bg-[#f3f5f8] p-1">
-                  {Object.keys(sensorData).map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setRange(item)
-                        setSelectedIndex(null)
-                      }}
-                      className={`rounded-lg px-3.5 py-2 text-[11px] font-bold transition ${
-                        range === item
-                          ? "bg-white text-[#315efb] shadow-sm"
-                          : "text-[#8a94a6] hover:text-[#596579]"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <span className="w-fit rounded-xl bg-[#eaf0ff] px-3.5 py-2 text-[11px] font-bold text-[#315efb]">
+                최근 {readings.length}/100개
+              </span>
             </div>
 
             <div className="relative mt-8">
@@ -431,7 +405,7 @@ export default function App() {
                   }}
                 >
                   <strong className="block text-xs">
-                    {chart.points[selectedIndex].value}%
+                    {chart.points[selectedIndex].value}
                   </strong>
                   <span className="text-white/60">
                     {chart.points[selectedIndex].time}
@@ -492,7 +466,7 @@ export default function App() {
                   strokeWidth="3.5"
                 />
                 {chart.points.map((point, index) => (
-                  <g key={`${range}-${index}-${point.time}`}>
+                  <g key={`${point.id}-${index}`}>
                     <circle
                       cx={point.x}
                       cy={point.y}
@@ -540,43 +514,26 @@ export default function App() {
                 <p className="text-[10px] font-semibold text-[#969fad]">
                   평균값
                 </p>
-                <p className="mt-1 text-base font-bold">
-                  {summary.average}
-                  {!livePoints.length && (
-                    <span className="ml-0.5 text-xs text-[#969fad]">%</span>
-                  )}
-                </p>
+                <p className="mt-1 text-base font-bold">{summary.average}</p>
               </div>
               <div className="px-3 sm:px-5">
                 <p className="text-[10px] font-semibold text-[#969fad]">
                   최고값
                 </p>
-                <p className="mt-1 text-base font-bold">
-                  {summary.highest}
-                  {!livePoints.length && (
-                    <span className="ml-0.5 text-xs text-[#969fad]">%</span>
-                  )}
-                </p>
+                <p className="mt-1 text-base font-bold">{summary.highest}</p>
               </div>
               <div className="px-3 sm:px-5">
                 <p className="text-[10px] font-semibold text-[#969fad]">
                   최저값
                 </p>
-                <p className="mt-1 text-base font-bold">
-                  {summary.lowest}
-                  {!livePoints.length && (
-                    <span className="ml-0.5 text-xs text-[#969fad]">%</span>
-                  )}
-                </p>
+                <p className="mt-1 text-base font-bold">{summary.lowest}</p>
               </div>
             </div>
           </article>
         </section>
 
         <p className="mt-5 text-right text-[11px] text-[#a0a8b5]">
-          {livePoints.length
-            ? "수신 데이터는 저장하지 않고 현재 화면에서만 유지합니다."
-            : "현재 화면은 예시 데이터를 사용하고 있습니다."}
+          Supabase readings 테이블의 최근 100개 행을 표시합니다.
         </p>
       </div>
     </main>
