@@ -1,5 +1,5 @@
 {
-  "description": "Explore fisheries employment by education level with year-by-year trends, regional rankings, and region search, including normalized comparisons across local areas.",
+  "description": "터치 센서 대시보드에서 현재 센서값을 크게 확인하고 시간에 따른 변화를 선 그래프로 살펴볼 수 있습니다.",
   "robots": {
     "index": false
   },
