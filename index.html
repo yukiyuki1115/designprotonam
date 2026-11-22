@@ -1,184 +1,206 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lunar Control</title>
+    <title>LightSync - 조명 제어 센서</title>
+    <meta name="description" content="기울기 센서로 조명 밝기를 실시간 제어하는 LightSync 대시보드" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div class="screen">
-      <header class="status-bar">
-        <div class="brand">LUNAR SENSOR BROADCAST SYSTEM</div>
-        <div class="terminal">CONTROL TERMINAL / V.01</div>
-      </header>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="LightSync 홈">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i>
+        </span>
+        <span>LightSync</span>
+      </a>
+      <div class="connection"><span></span>센서 연결됨</div>
+    </header>
 
-      <main class="console">
-        <div class="console-header">
-          <h1>LUNAR / CONTROL</h1>
-          <div class="session">
-            <div class="label">ZERO MODE</div>
-            <div class="value">LOCAL SESSION</div>
-            <div class="desc">[세션 정보 / 2-2번째]</div>
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p>SMART LIGHTING / LIVE SENSOR</p>
+          <h1>기울기로 조명을<br />더 편안하게</h1>
+        </div>
+        <p class="hero-description">기울기 센서의 각도를 실시간으로 감지해<br />조명의 밝기를 자연스럽게 조절합니다.</p>
+      </section>
+
+      <section class="divider"></section>
+
+      <div class="dashboard">
+        <article class="card tilt-card">
+          <div class="card-head">
+            <div>
+              <p>01 / 기울기 센서</p>
+              <h2>현재 기울기</h2>
+            </div>
+            <button class="reset-button" id="resetTilt" type="button" aria-label="기울기 초기화">↺</button>
           </div>
-        </div>
+          <div class="tilt-scale" aria-hidden="true">
+            <span>-45°</span><span>0°</span><span>45°</span>
+            <div class="scale-track"><i id="scaleProgress"></i><b id="scaleKnob"></b></div>
+          </div>
+          <div class="tilt-reading">
+            <strong id="tiltValue">9.86627311439975</strong><span>°</span>
+            <p id="tiltDescription">약간 오른쪽 기울기 · 9.86627311439975°</p>
+          </div>
+          <label class="sensor-control" for="tiltSlider">
+            <span>센서 시뮬레이션</span>
+            <input id="tiltSlider" type="range" min="-45" max="45" value="10" />
+          </label>
+        </article>
 
-        <div class="mode-line">[데이터 열기] / [데이터 건전, 전송]</div>
-
-        <div class="dashboard-grid">
-          <section class="left-stack">
-            <article class="panel small-panel">
-              <div class="panel-header"><span class="index">01</span> Device Power</div>
-              <div class="panel-body">
-                <div class="field">
-                  <span class="field-label">센서 릴레이</span>
-                  <div class="toggles">
-                    <button class="active" type="button">On</button>
-                    <button type="button">Off</button>
-                  </div>
-                </div>
-
-                <div class="field led-field">
-                  <span class="field-label">LED 전원</span>
-                  <button class="led-switch" type="button" aria-pressed="false"><span></span>Off</button>
-                </div>
-
-                <div class="signal-stack">
-                  <div class="status-row">
-                    <span>Servo_61</span>
-                    <strong>Standby</strong>
-                  </div>
-                </div>
+        <article class="card brightness-card">
+          <div class="card-head">
+            <div>
+              <p>02 / 조명 밝기</p>
+              <h2>실시간 밝기</h2>
+            </div>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="brightness-content">
+            <div class="brightness-ring" id="brightnessRing">
+              <div>
+                <strong id="brightnessValue">69</strong><span>%</span>
+                <p>조명 밝기</p>
               </div>
-            </article>
+            </div>
+            <div class="manual-brightness">
+              <span>0</span>
+              <input id="brightnessSlider" type="range" min="0" max="100" value="69" aria-label="조명 밝기" />
+              <span>100</span>
+            </div>
+          </div>
+        </article>
 
-            <article class="panel small-panel">
-              <div class="panel-header"><span class="index">02</span> Signal Control</div>
-              <div class="panel-body">
-                <div class="signal-heading">
-                  <strong>RX / STANDBY</strong>
-                  <span>신호 수신 대기</span>
-                </div>
-                <div class="signal-actions">
-                  <button class="signal-action primary" type="button">신호 수신 시작<small>START RECEIVING</small></button>
-                  <button class="signal-action" type="button">신호 수신 정지<small>STOP RECEIVING</small></button>
-                </div>
-                <div class="signal-note">CH 01 / LOCAL / MANUAL</div>
-              </div>
-            </article>
+        <article class="card history-card">
+          <div class="card-head">
+            <div>
+              <p>03 / 센서 기록</p>
+              <h2>밝기 변화 추이</h2>
+            </div>
+            <span class="legend"><i></i>밝기</span>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-labels" aria-hidden="true"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+            <svg class="chart" viewBox="0 0 760 190" role="img" aria-label="최근 조명 밝기 변화 그래프" preserveAspectRatio="none">
+              <g class="grid-lines">
+                <line x1="0" y1="10" x2="760" y2="10" /><line x1="0" y1="52" x2="760" y2="52" />
+                <line x1="0" y1="94" x2="760" y2="94" /><line x1="0" y1="136" x2="760" y2="136" />
+                <line x1="0" y1="178" x2="760" y2="178" />
+              </g>
+              <path id="historyArea" class="area" d="" />
+              <path id="historyLine" class="line" d="" />
+            </svg>
+            <div class="latest"><span>최신 기록</span><span>지금</span></div>
+          </div>
+        </article>
 
-            <article class="panel medium-panel">
-              <div class="panel-header"><span class="index">63</span> <span>Spatial Render / Reserved</span></div>
-              <div class="main-visual">
-                <div class="device-scene">
-                  <div class="device" aria-label="Device render illustration">
-                    <div class="cabinet">
-                      <div class="tray"><div class="spark"></div></div>
-                    </div>
-                    <div class="belt"></div>
-                    <div class="column left"></div>
-                    <div class="column right"></div>
-                    <div class="base"></div>
-                  </div>
-                </div>
-                <div class="scene-footer">
-                  <span class="left">X : -0.344 / Y : 0.545 / Z : 0.657</span>
-                  <span class="right">696 / 462</span>
-                </div>
-              </div>
-            </article>
+        <aside class="side-panel">
+          <div class="mode-section">
+            <p>조명 모드</p>
+            <div class="mode-options" role="radiogroup" aria-label="조명 모드 선택">
+              <button class="mode-option active" type="button" role="radio" aria-checked="true" data-mode="auto">
+                <span class="mode-icon">◒</span><span><strong>자동</strong><small>센서 연동</small></span>
+              </button>
+              <button class="mode-option" type="button" role="radio" aria-checked="false" data-mode="manual">
+                <span class="mode-icon">☼</span><span><strong>수동</strong><small>밝기 고정</small></span>
+              </button>
+              <button class="mode-option" type="button" role="radio" aria-checked="false" data-mode="sleep">
+                <span class="mode-icon">☾</span><span><strong>취침</strong><small>부드러운 빛</small></span>
+              </button>
+            </div>
+          </div>
+          <dl class="device-status">
+            <p>센서 상태</p>
+            <div><dt>장치 이름</dt><dd>Desk Light-01</dd></div>
+            <div><dt>센서 입력</dt><dd>MPU-6050</dd></div>
+            <div><dt>업데이트</dt><dd>방금 전</dd></div>
+            <div><dt>배터리</dt><dd>82%</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </main>
 
-            <article class="panel bottom-panel">
-              <div class="panel-header"><span class="index">06</span> Incoming Transmissions</div>
-              <div class="chart-panel">
-                <svg viewBox="0 0 960 150" preserveAspectRatio="none" aria-hidden="true">
-                  <g stroke="rgba(255,92,79,0.22)" stroke-width="1">
-                    <path d="M0 20 H960" />
-                    <path d="M0 50 H960" />
-                    <path d="M0 80 H960" />
-                    <path d="M0 110 H960" />
-                    <path d="M0 140 H960" />
-                  </g>
-                  <g stroke="rgba(255,92,79,0.28)" stroke-width="1">
-                    <path d="M0 30 V140" />
-                    <path d="M120 30 V140" />
-                    <path d="M240 30 V140" />
-                    <path d="M360 30 V140" />
-                    <path d="M480 30 V140" />
-                    <path d="M600 30 V140" />
-                    <path d="M720 30 V140" />
-                    <path d="M840 30 V140" />
-                    <path d="M960 30 V140" />
-                  </g>
-                  <path d="M0 140 H960" fill="none" stroke="rgba(255,120,92,0.58)" stroke-width="1.5" />
-                </svg>
-                <div class="status">센서를 전달하면 값이 이곳에 표시됩니다.</div>
-              </div>
-            </article>
-          </section>
-
-          <aside class="right-stack">
-            <article class="panel small-panel">
-              <div class="panel-header"><span class="index">04</span> Sensor Telemetry</div>
-              <div class="signal-panel">
-                <div class="mini-box">
-                  <div class="sensor-meter">
-                    <span>Sensor Value</span>
-                    <div class="meter-track"><i></i></div>
-                  </div>
-                  <strong>/ 4095</strong>
-                </div>
-                <div class="signal-grid">
-                  <span>Signal / RF</span>
-                  <span class="value">-6 dB</span>
-                  <span>Packets received</span>
-                  <span class="value">68080</span>
-                  <span>Receive state</span>
-                  <span class="value">Standby</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="panel small-panel">
-              <div class="panel-header"><span class="index">05</span> System events</div>
-              <div class="system-list">
-                <div class="row"><span>01 Entries / Local</span><span>On</span></div>
-                <div class="row"><span>02 Receiver</span><span>Standby</span></div>
-                <div class="row"><span>03 Receiver</span><span>Standby</span></div>
-                <div class="row warning"><span>Waiting for start</span></div>
-              </div>
-            </article>
-
-            <article class="panel small-panel">
-              <div class="panel-header"><span class="index">07</span> Channel Monitor</div>
-              <div class="channel-bar">
-                <div class="channel-label">BAND / SENSOR_01</div>
-                <div class="channel-rows">
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
-                <div class="channel-footer">
-                  <span>Buffer</span>
-                  <span>0 / 60</span>
-                </div>
-                <div class="channel-status">Awaiting incoming data</div>
-              </div>
-            </article>
-          </aside>
-        </div>
-
-        <footer class="console-footer">
-          <span>LUNAR 5002B/S / SENSOR_B1</span>
-          <span>MANUAL CONTROL / ZERO SESSION</span>
-          <span>READY FOR TRANSMISSION // 006</span>
-        </footer>
-      </main>
-    </div>
     <script>
-      window.history.scrollRestoration = 'manual';
-      window.scrollTo(0, 0);
+      const tiltSlider = document.querySelector("#tiltSlider");
+      const tiltValue = document.querySelector("#tiltValue");
+      const tiltDescription = document.querySelector("#tiltDescription");
+      const scaleProgress = document.querySelector("#scaleProgress");
+      const scaleKnob = document.querySelector("#scaleKnob");
+      const brightnessSlider = document.querySelector("#brightnessSlider");
+      const brightnessValue = document.querySelector("#brightnessValue");
+      const brightnessRing = document.querySelector("#brightnessRing");
+      const historyLine = document.querySelector("#historyLine");
+      const historyArea = document.querySelector("#historyArea");
+      let mode = "auto";
+      let history = [42, 52, 47, 58, 63, 54, 69];
+
+      function updateTilt(raw) {
+        const angle = raw === "10" ? 9.86627311439975 : Number(raw);
+        const display = raw === "10" ? "9.86627311439975" : angle.toFixed(2);
+        tiltValue.textContent = display;
+        tiltDescription.textContent =
+          `${angle > 3 ? "약간 오른쪽 기울기" : angle < -3 ? "약간 왼쪽 기울기" : "수평 상태"} · ${display}°`;
+        const position = ((angle + 45) / 90) * 100;
+        scaleProgress.style.width = `${position}%`;
+        scaleKnob.style.left = `${position}%`;
+        if (mode === "auto") updateBrightness(Math.round(50 + (angle + 45) * 0.35));
+      }
+
+      function updateBrightness(value) {
+        value = Math.max(0, Math.min(100, value));
+        brightnessSlider.value = value;
+        brightnessValue.textContent = value;
+        brightnessRing.style.setProperty("--brightness", `${value * 3.6}deg`);
+        history.push(value);
+        history = history.slice(-14);
+        drawHistory();
+      }
+
+      function drawHistory() {
+        const width = 760, height = 178, top = 10;
+        const step = width / Math.max(history.length - 1, 1);
+        const points = history.map((value, index) => ({
+          x: index * step,
+          y: top + height - (value / 100) * (height - top)
+        }));
+        const d = points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+        historyLine.setAttribute("d", d);
+        historyArea.setAttribute("d", `${d} L ${width} ${height + top} L 0 ${height + top} Z`);
+      }
+
+      tiltSlider.addEventListener("input", (event) => updateTilt(event.target.value));
+      document.querySelector("#resetTilt").addEventListener("click", () => {
+        tiltSlider.value = 0;
+        updateTilt("0");
+      });
+      brightnessSlider.addEventListener("input", (event) => {
+        mode = "manual";
+        document.querySelectorAll(".mode-option").forEach((option) => {
+          const active = option.dataset.mode === "manual";
+          option.classList.toggle("active", active);
+          option.setAttribute("aria-checked", String(active));
+        });
+        updateBrightness(Number(event.target.value));
+      });
+      document.querySelectorAll(".mode-option").forEach((option) => {
+        option.addEventListener("click", () => {
+          mode = option.dataset.mode;
+          document.querySelectorAll(".mode-option").forEach((item) => {
+            const active = item === option;
+            item.classList.toggle("active", active);
+            item.setAttribute("aria-checked", String(active));
+          });
+          if (mode === "sleep") updateBrightness(20);
+          if (mode === "manual") updateBrightness(Number(brightnessSlider.value));
+          if (mode === "auto") updateTilt(tiltSlider.value);
+        });
+      });
+      updateTilt("10");
+      drawHistory();
     </script>
   </body>
 </html>
